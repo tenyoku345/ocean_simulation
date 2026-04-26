@@ -10,13 +10,6 @@ Install dependencies:
 ```bash
 pip install numpy matplotlib scipy
 ```
-
-On managed systems (university lab machines):
-
-```bash
-pip install numpy matplotlib scipy --break-system-packages
-```
-
 Using conda:
 
 ```bash
