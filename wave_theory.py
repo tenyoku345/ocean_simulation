@@ -27,18 +27,7 @@ import numpy as np
 from scipy.optimize import brentq
 from dataclasses import dataclass, field
 from typing import Optional
-
-
-# ---------------------------------------------------------------------------
-# Physical constants
-# ---------------------------------------------------------------------------
-G = 9.81  # gravitational acceleration m/s^2
-
-
-# ---------------------------------------------------------------------------
-# Dispersion relation  ω² = g·k·tanh(k·h)
-# ---------------------------------------------------------------------------
-
+G = 9.81 
 def dispersion(k: float, h: float = np.inf) -> float:
     """Angular frequency ω for wavenumber k in water depth h."""
     if np.isinf(h):
@@ -54,14 +43,10 @@ def wavenumber_from_frequency(omega: float, h: float = np.inf,
     """
     if np.isinf(h):
         return omega**2 / G
-
-    # Initial guess: deep water
     k0 = omega**2 / G
 
     def residual(k):
         return G * k * np.tanh(k * h) - omega**2
-
-    # Bracket search
     k_lo, k_hi = 1e-6, max(k0 * 10, 1.0)
     while residual(k_hi) < 0:
         k_hi *= 2
@@ -85,11 +70,6 @@ def group_velocity(k: float, h: float = np.inf) -> float:
     omega = dispersion(k, h)
     n = 0.5 * (1 + 2 * kh / np.sinh(2 * kh))
     return n * omega / k
-
-
-# ---------------------------------------------------------------------------
-# Single progressive wave
-# ---------------------------------------------------------------------------
 
 @dataclass
 class LinearWave:
@@ -195,11 +175,6 @@ class LinearWave:
             f"h={'∞' if np.isinf(self.h) else f'{self.h:.1f} m'}"
         )
 
-
-# ---------------------------------------------------------------------------
-# Wave superposition (the ocean is a sum of many waves)
-# ---------------------------------------------------------------------------
-
 class WaveField:
     """
     Superposition of N linear waves.
@@ -225,11 +200,6 @@ class WaveField:
         variance = sum(0.5 * w.amplitude**2 for w in self.waves)
         return 4 * np.sqrt(variance)
 
-
-# ---------------------------------------------------------------------------
-# JONSWAP spectrum — realistic storm wave spectrum
-# ---------------------------------------------------------------------------
-
 def jonswap_spectrum(f: np.ndarray, Hs: float = 3.0,
                      Tp: float = 10.0, gamma: float = 3.3) -> np.ndarray:
     """
@@ -244,11 +214,8 @@ def jonswap_spectrum(f: np.ndarray, Hs: float = 3.0,
     The significant wave height satisfies: Hs = 4*sqrt(integral S df).
     """
     f = np.asarray(f, dtype=float)
-    fp = 1.0 / Tp  # peak frequency
-
-    # PM spectral shape
+    fp = 1.0 / Tp
     alpha = 0.0624 / (0.230 + 0.0336 * gamma - 0.185 / (1.9 + gamma))
-    # Use Hs-based normalization
     alpha_hs = (Hs / 4)**2 / (0.2257 * Tp**4)
 
     sigma = np.where(f <= fp, 0.07, 0.09)
@@ -280,11 +247,8 @@ def waves_from_jonswap(Hs: float = 3.0, Tp: float = 10.0,
     freqs = np.linspace(f_min, f_max, n_waves)
     df = freqs[1] - freqs[0]
     S = jonswap_spectrum(freqs, Hs=Hs, Tp=Tp, gamma=gamma)
-
-    # Amplitude from spectrum: A = sqrt(2 * S * df)
     amplitudes = np.sqrt(2 * S * df)
     phases = rng.uniform(0, 2 * np.pi, n_waves)
-    # Directional spreading: Gaussian around 0
     directions = rng.normal(0, spreading, n_waves)
 
     waves = []
@@ -297,11 +261,6 @@ def waves_from_jonswap(Hs: float = 3.0, Tp: float = 10.0,
                 direction=d, phase=phi
             ))
     return WaveField(waves)
-
-
-# ---------------------------------------------------------------------------
-# Stokes wave (weakly nonlinear correction)
-# ---------------------------------------------------------------------------
 
 def stokes_elevation(x: np.ndarray, t: float, wave: LinearWave,
                       stokes_order: int = 3) -> np.ndarray:
@@ -317,7 +276,7 @@ def stokes_elevation(x: np.ndarray, t: float, wave: LinearWave,
     For steepness k*A > 0.44, waves begin to break (Miche criterion).
     """
     k, A = wave.k, wave.amplitude
-    eps = k * A  # Stokes parameter (wave steepness)
+    eps = k * A
     theta = wave.kx * x - wave.omega * t + wave.phase
 
     eta = A * np.cos(theta)
@@ -326,11 +285,6 @@ def stokes_elevation(x: np.ndarray, t: float, wave: LinearWave,
     if stokes_order >= 3:
         eta += (3/8) * eps**2 * A * np.cos(3 * theta)
     return eta
-
-
-# ---------------------------------------------------------------------------
-# Dispersion relation visualisation helper
-# ---------------------------------------------------------------------------
 
 def dispersion_curves(h_values: list[float],
                        k_range: tuple = (0.01, 5.0), n: int = 300):
@@ -349,8 +303,6 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
     print("=== Water Wave Theory Demo ===\n")
-
-    # 1. Dispersion relation
     wave = LinearWave(amplitude=1.5, k=0.5, h=30.0)
     print(wave.summary())
 
@@ -367,8 +319,6 @@ if __name__ == '__main__':
     ax.set_title('Dispersion relation ω²=gk·tanh(kh)')
     ax.legend(fontsize=9)
     ax.grid(alpha=0.3)
-
-    # 2. JONSWAP spectrum
     ax = axes[1]
     f = np.linspace(0.01, 0.5, 500)
     for gamma, ls in [(1.0, '--'), (3.3, '-'), (7.0, ':')]:
@@ -380,7 +330,6 @@ if __name__ == '__main__':
     ax.legend()
     ax.grid(alpha=0.3)
 
-    # 3. Particle orbits at different depths
     ax = axes[2]
     t_arr = np.linspace(0, wave.period, 200)
     depths = [0, -5, -10, -20]

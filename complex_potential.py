@@ -16,16 +16,7 @@ by composing elementary analytic functions, and fluid dynamics falls out for fre
 
 import numpy as np
 from typing import Callable
-
-# ---------------------------------------------------------------------------
-# Type alias: a ComplexPotential is a callable z -> F(z), z complex ndarray
-# ---------------------------------------------------------------------------
 ComplexPotential = Callable[[np.ndarray], np.ndarray]
-
-
-# ---------------------------------------------------------------------------
-# Elementary building blocks (Sec 125 / Chap 11)
-# ---------------------------------------------------------------------------
 
 def uniform_flow(A: float = 1.0, angle: float = 0.0) -> ComplexPotential:
     """
@@ -118,11 +109,6 @@ def superpose(*potentials: ComplexPotential) -> ComplexPotential:
         return sum(f(z) for f in potentials)
     return F
 
-
-# ---------------------------------------------------------------------------
-# Field computation: given F, recover all physical quantities
-# ---------------------------------------------------------------------------
-
 def compute_fields(F: ComplexPotential, x: np.ndarray, y: np.ndarray,
                    eps: float = 1e-8):
     """
@@ -141,18 +127,12 @@ def compute_fields(F: ComplexPotential, x: np.ndarray, y: np.ndarray,
     FZ = F(Z)
     phi = np.real(FZ)
     psi = np.imag(FZ)
-
-    # Complex derivative F'(z) via central difference
     dz = eps * (1 + 1j)
     Fprime = (F(Z + dz) - F(Z - dz)) / (2 * dz)
-
-    # Velocity: V = conj(F'(z))  [Sec 125, eq 3]
     V = np.conj(Fprime)
     u = np.real(V)
     v = np.imag(V)
     speed = np.abs(V)
-
-    # Bernoulli pressure (up to a constant C, set so mean pressure = 0)
     pressure = -0.5 * speed**2
     pressure -= pressure.mean()
 
@@ -164,11 +144,6 @@ def compute_fields(F: ComplexPotential, x: np.ndarray, y: np.ndarray,
         'speed': speed,
         'pressure': pressure,
     }
-
-
-# ---------------------------------------------------------------------------
-# Conformal maps (Sec 126 technique)
-# ---------------------------------------------------------------------------
 
 def joukowski_map(z: np.ndarray, c: float = 1.0) -> np.ndarray:
     """
@@ -191,11 +166,6 @@ def apply_conformal_map(F_w: ComplexPotential,
         return F_w(map_fn(z))
     return F_z
 
-
-# ---------------------------------------------------------------------------
-# Stagnation point finder
-# ---------------------------------------------------------------------------
-
 def find_stagnation_points(F: ComplexPotential, x_range, y_range,
                            nx=400, ny=400, threshold=0.05):
     """
@@ -216,18 +186,13 @@ def find_stagnation_points(F: ComplexPotential, x_range, y_range,
 
 
 if __name__ == '__main__':
-    # Quick smoke test
     import matplotlib.pyplot as plt
 
     x = np.linspace(-3, 3, 400)
     y = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, y)
-
-    # Cylinder flow with circulation (Magnus effect)
     F = cylinder_flow(A=1.0, radius=1.0, circulation=2.0)
     fields = compute_fields(F, X, Y)
-
-    # Mask inside cylinder
     R = np.sqrt(X**2 + Y**2)
     mask = R < 1.0
 

@@ -27,10 +27,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 
-# ---------------------------------------------------------------------------
-# Circular island scattering
-# ---------------------------------------------------------------------------
-
 def island_wave_field(radius: float = 1.0, wave_speed: float = 1.0,
                        circulation: float = 0.0):
     """
@@ -59,18 +55,11 @@ def compute_wave_runup(radius: float = 1.0, wave_speed: float = 1.0,
     and least at the flanks θ=±π/2.
     """
     theta = np.linspace(0, 2 * np.pi, n_theta)
-    # Speed on cylinder surface: |V| = 2A|sin(theta)|
     speed_on_surface = 2 * wave_speed * np.abs(np.sin(theta))
     pressure = -0.5 * speed_on_surface**2
-    # Normalize: max pressure = 0 (stagnation)
     pressure -= pressure.min()
     pressure /= pressure.max() + 1e-12
     return theta, pressure
-
-
-# ---------------------------------------------------------------------------
-# Headland / Wedge scattering
-# ---------------------------------------------------------------------------
 
 def headland_flow(alpha_deg: float = 90.0, A: float = 1.0):
     """
@@ -89,11 +78,6 @@ def headland_flow(alpha_deg: float = 90.0, A: float = 1.0):
     n = np.pi / alpha_rad
     return corner_flow(A=A, n=n)
 
-
-# ---------------------------------------------------------------------------
-# Harbour resonance (analogy with Sec 131 slit flow)
-# ---------------------------------------------------------------------------
-
 def harbour_flow(entrance_width: float = 0.5, basin_depth: float = 2.0,
                   wave_amplitude: float = 1.0):
     """
@@ -108,7 +92,6 @@ def harbour_flow(entrance_width: float = 0.5, basin_depth: float = 2.0,
     The resonance frequency satisfies: L = (2n-1)λ/4, n=1,2,...
     (quarter-wavelength condition, analogous to an organ pipe).
     """
-    # Model: source at entrance + uniform inflow
     source_strength = wave_amplitude * entrance_width * 2 * np.pi
     F_source = lambda z: (source_strength / (2 * np.pi)) * np.log(z + 1j * 0.01)
     F_uniform = uniform_flow(A=wave_amplitude * 0.3, angle=np.pi / 2)
@@ -133,11 +116,6 @@ def resonance_frequencies(L: float, h: float, n_modes: int = 5) -> np.ndarray:
     T_n = 2 * np.pi / omega_n
     return T_n
 
-
-# ---------------------------------------------------------------------------
-# Multiple island scattering (method of images)
-# ---------------------------------------------------------------------------
-
 def two_island_flow(d: float = 3.0, R: float = 0.8, A: float = 1.0):
     """
     Flow past two circular islands of radius R, centres at ±d on x-axis.
@@ -148,22 +126,15 @@ def two_island_flow(d: float = 3.0, R: float = 0.8, A: float = 1.0):
     For exact solution one would use elliptic functions; this
     first-order approximation is accurate when d >> R.
     """
-    F1 = cylinder_flow(A=A, radius=R)           # island centred at 0
-    # Approximate effect of second island by adding its doublet
+    F1 = cylinder_flow(A=A, radius=R)
     doublet_strength = A * R**2
     def F2_approx(z):
         return doublet_strength / (z - d)
 
     def F(z):
-        # Shift z so island 1 is at -d, island 2 at +d
-        return (A * (z) + A * R**2 / (z + d)    # island 1 centred at -d
-                + A * R**2 / (z - d))            # island 2 centred at +d
+        return (A * (z) + A * R**2 / (z + d)
+                + A * R**2 / (z - d))
     return F
-
-
-# ---------------------------------------------------------------------------
-# Visualization
-# ---------------------------------------------------------------------------
 
 def plot_scattering_scenario(title, F, x_range, y_range,
                               obstacles=None, nx=500, ny=500,
@@ -185,8 +156,6 @@ def plot_scattering_scenario(title, F, x_range, y_range,
     speed = fields['speed']
     psi = fields['psi']
     pressure = fields['pressure']
-
-    # Build mask for obstacle interiors
     mask = np.zeros_like(X, dtype=bool)
     if obstacles:
         for obs in obstacles:
@@ -195,29 +164,22 @@ def plot_scattering_scenario(title, F, x_range, y_range,
                 mask |= ((X - cx)**2 + (Y - cy)**2) < r**2
             elif obs['type'] == 'wedge':
                 angle = obs.get('angle', np.pi / 2)
-                # Mask the wedge region
                 theta = np.arctan2(Y, X)
                 r_dist = np.sqrt(X**2 + Y**2)
                 mask |= (r_dist < 0.3) | ((np.abs(theta) > angle / 2) & (r_dist < 0.5))
 
     pressure_masked = np.ma.masked_where(mask, pressure)
     speed_masked = np.ma.masked_where(mask, speed)
-
-    # Background: pressure field (colour)
     im = ax.pcolormesh(X, Y, pressure_masked, cmap=cmap,
                         shading='auto', alpha=0.85,
                         vmin=np.percentile(pressure_masked.compressed(), 2),
                         vmax=np.percentile(pressure_masked.compressed(), 98))
-
-    # Streamlines (wave paths / crests)
     psi_masked = np.ma.masked_where(mask, psi)
     psi_vals = np.linspace(np.percentile(psi_masked.compressed(), 5),
                             np.percentile(psi_masked.compressed(), 95),
                             n_streamlines)
     ax.contour(X, Y, psi_masked, levels=psi_vals,
                colors='white', linewidths=0.7, alpha=0.6)
-
-    # Draw obstacles
     if obstacles:
         for obs in obstacles:
             if obs['type'] == 'circle':
@@ -237,7 +199,6 @@ def plot_scattering_scenario(title, F, x_range, y_range,
                 from matplotlib.patches import Polygon
                 poly = Polygon(verts, closed=True, color='#2c2c2c', zorder=10)
                 ax.add_patch(poly)
-
     plt.colorbar(im, ax=ax, shrink=0.8, label='Pressure (Bernoulli)')
     ax.set_xlim(*x_range)
     ax.set_ylim(*y_range)
@@ -245,8 +206,6 @@ def plot_scattering_scenario(title, F, x_range, y_range,
     ax.set_title(title, fontsize=12, pad=10)
     ax.set_xlabel('x (m)')
     ax.set_ylabel('y (m)')
-
-    # Arrow showing incoming wave direction
     ax.annotate('', xy=(x_range[0] + 0.8, y_range[0] + 0.3),
                 xytext=(x_range[0] + 0.1, y_range[0] + 0.3),
                 arrowprops=dict(arrowstyle='->', color='white', lw=2))
@@ -265,37 +224,28 @@ if __name__ == '__main__':
     fig.suptitle("Wave Scattering — Conformal Mapping (Sec 126)\n"
                  "White lines = streamlines (wave paths), colour = pressure",
                  fontsize=14, y=0.98)
-
-    # 1. Single circular island
     F1 = island_wave_field(radius=1.0, wave_speed=1.0)
     plot_scattering_scenario(
         "Circular island (Sec 126, Example 2)\nF(z) = A(z + R²/z)",
         F1, (-4, 4), (-4, 4),
         obstacles=[{'type': 'circle', 'cx': 0, 'cy': 0, 'r': 1.0}],
         ax=axes[0, 0], cmap='RdBu_r')
-
-    # 2. Island with tidal circulation (Magnus effect)
     F2 = island_wave_field(radius=1.0, wave_speed=1.0, circulation=4.0)
     plot_scattering_scenario(
         "Island with tidal vortex (Γ=4)\nMagnus effect: asymmetric wave field",
         F2, (-4, 4), (-4, 4),
         obstacles=[{'type': 'circle', 'cx': 0, 'cy': 0, 'r': 1.0}],
         ax=axes[0, 1], cmap='PuOr_r')
-
-    # 3. Headland (90-degree wedge)
     F3 = headland_flow(alpha_deg=90.0, A=1.0)
     plot_scattering_scenario(
         "Headland — 90° wedge (Sec 126, Example 1)\nF(z) = A·z², stagnation at tip",
         F3, (0.01, 4), (0.01, 4),
         obstacles=None,
         ax=axes[1, 0], cmap='RdBu_r')
-    # Draw the wedge walls
     axes[1, 0].axhline(y=0, color='#2c2c2c', lw=3, xmin=0)
     axes[1, 0].axvline(x=0, color='#2c2c2c', lw=3, ymin=0)
     axes[1, 0].text(0.15, 0.15, 'Stagnation\npoint', fontsize=8,
                     color='white', ha='center')
-
-    # 4. Two islands
     F4 = two_island_flow(d=2.5, R=0.7, A=1.0)
     plot_scattering_scenario(
         "Two islands — method of images\nWave channelling between obstacles",
@@ -305,8 +255,6 @@ if __name__ == '__main__':
             {'type': 'circle', 'cx':  2.5, 'cy': 0, 'r': 0.7},
         ],
         ax=axes[1, 1], cmap='RdBu_r')
-
-    # Runup distribution inset on island plot
     theta, runup = compute_wave_runup()
     ax_inset = axes[0, 0].inset_axes([0.72, 0.72, 0.26, 0.26],
                                        transform=axes[0, 0].transAxes)
@@ -319,8 +267,6 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.savefig('/tmp/coastal_scattering.png', dpi=120, bbox_inches='tight')
     print("Saved coastal_scattering.png")
-
-    # Harbour resonance
     print("\nHarbour resonance periods (L=500m, h=10m):")
     T_res = resonance_frequencies(L=500, h=10, n_modes=4)
     for i, T in enumerate(T_res):

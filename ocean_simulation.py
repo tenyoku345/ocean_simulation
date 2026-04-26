@@ -34,10 +34,6 @@ from coastal_scattering import (
     island_wave_field, headland_flow, two_island_flow,
     compute_wave_runup, resonance_frequencies
 )
-
-# ---------------------------------------------------------------------------
-# Custom ocean colourmap
-# ---------------------------------------------------------------------------
 ocean_colors = [
     '#0a1628',   # deep midnight blue
     '#0d2b52',   # deep ocean
@@ -52,36 +48,23 @@ OCEAN_CMAP = LinearSegmentedColormap.from_list('ocean', ocean_colors, N=256)
 pressure_colors = ['#1a3a5c', '#2878b5', '#7fbddb', '#f0f0f0', '#f5a27b', '#d45a2a', '#8b1a0a']
 PRESSURE_CMAP = LinearSegmentedColormap.from_list('pressure', pressure_colors, N=256)
 
-
-# ---------------------------------------------------------------------------
-# Simulation parameters
-# ---------------------------------------------------------------------------
 class OceanConfig:
-    # Domain
     Lx: float = 200.0         # domain width (m)
     Lz: float = 60.0          # domain depth (m)
     Nx: int = 300              # horizontal resolution
     Nz: int = 100              # vertical resolution
     surface_Nx: int = 600      # surface resolution
-
-    # Wave conditions
     Hs: float = 3.5            # significant wave height (m)
     Tp: float = 12.0           # peak period (s)
     gamma: float = 3.3         # JONSWAP peak enhancement
     h: float = 50.0            # water depth (m)
     n_waves: int = 60          # number of spectral components
-
-    # Obstacle
     island_radius: float = 15.0
     island_x: float = 0.0
     island_y: float = 0.0
-
-    # Animation
     dt: float = 0.4            # time step per frame (s)
     fps: int = 25
     n_frames: int = 200
-
-    # Particles
     n_particles: int = 30
 
 
@@ -95,11 +78,6 @@ def build_random_sea(cfg: OceanConfig, seed: int = 42) -> WaveField:
     )
     print(f"  Significant wave height (computed): {wf.significant_wave_height():.2f} m")
     return wf
-
-
-# ---------------------------------------------------------------------------
-# Particle tracker
-# ---------------------------------------------------------------------------
 class ParticleTracker:
     """
     Track Lagrangian particles using the wave velocity field.
@@ -135,11 +113,6 @@ class ParticleTracker:
         self.history_x.append(self.x.copy())
         self.history_y.append(self.y.copy())
 
-
-# ---------------------------------------------------------------------------
-# Main simulation: multi-panel static figure
-# ---------------------------------------------------------------------------
-
 def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     if cfg is None:
         cfg = OceanConfig()
@@ -147,35 +120,22 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     print("=== Ocean Simulation ===\n")
     print("Phase 1: Building wave field from JONSWAP spectrum...")
     wf = build_random_sea(cfg)
-
-    # Grids
     x_surf = np.linspace(-cfg.Lx/2, cfg.Lx/2, cfg.surface_Nx)
     x_sub = np.linspace(-cfg.Lx/2, cfg.Lx/2, cfg.Nx)
     z_sub = np.linspace(-cfg.Lz, 0, cfg.Nz)
     X_sub, Z_sub = np.meshgrid(x_sub, z_sub)
-
-    # Snapshots at multiple times
     times = [0, 2, 5, 10]
-    t_anim = 8.0  # main display time
-
-    # Surface elevation
+    t_anim = 8.0 
     eta = wf.surface_elevation(x_surf, t_anim)
     eta_stokes = stokes_elevation(x_surf, t_anim,
                                    wf.waves[np.argmax([w.amplitude for w in wf.waves])],
                                    stokes_order=3)
-
-    # Subsurface velocity
     print("Phase 2: Computing subsurface velocity field...")
     u_field = wf.velocity_u(X_sub, Z_sub, t_anim)
     v_field = wf.velocity_v(X_sub, Z_sub, t_anim)
     speed_field = np.sqrt(u_field**2 + v_field**2)
-
-    # Pressure from Bernoulli (Sec 124)
     pressure_field = -0.5 * speed_field**2
-    # Add hydrostatic term (linear water wave theory)
-    pressure_field += G * (-Z_sub)  # rho*g*depth (normalized by rho)
-
-    # Island scattering (complex potential)
+    pressure_field += G * (-Z_sub)
     print("Phase 3: Computing island wave scattering...")
     F_island = island_wave_field(radius=1.0, wave_speed=1.0)
     xg = np.linspace(-4, 4, 400)
@@ -183,8 +143,6 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     Xg, Yg = np.meshgrid(xg, yg)
     scatter_fields = compute_fields(F_island, Xg, Yg)
     mask_island = Xg**2 + Yg**2 < 1.0
-
-    # Particle tracking
     print("Phase 4: Particle tracking (Stokes drift)...")
     rng = np.random.default_rng(0)
     x0 = rng.uniform(-cfg.Lx/2 + 10, -20, cfg.n_particles)
@@ -193,20 +151,10 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     n_track_steps = 60
     for i in range(n_track_steps):
         tracker.step(t=i * cfg.dt, dt=cfg.dt)
-
-    # Wave runup on island
     theta_runup, runup = compute_wave_runup(radius=1.0)
-
-    # JONSWAP spectrum
     f_arr = np.linspace(0.02, 0.5, 400)
     S_arr = jonswap_spectrum(f_arr, Hs=cfg.Hs, Tp=cfg.Tp, gamma=cfg.gamma)
-
-    # Dispersion curves
     k_arr, disp_curves = dispersion_curves([10, 50, 200, np.inf])
-
-    # -----------------------------------------------------------------------
-    # Figure layout
-    # -----------------------------------------------------------------------
     print("Phase 5: Rendering figure...")
     fig = plt.figure(figsize=(20, 16))
     fig.patch.set_facecolor('#0a1628')
@@ -219,24 +167,17 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     title_kw = dict(fontsize=11, color='#e0eaf5', pad=8)
     label_kw = dict(fontsize=9, color='#8aafc8')
     tick_kw = dict(colors='#8aafc8', labelsize=8)
-
-    # -----------------------------------------------------------------------
-    # Panel 1: Ocean surface elevation (full width)
-    # -----------------------------------------------------------------------
     ax1 = fig.add_subplot(gs[0, :])
     ax1.set_facecolor('#0d1f3c')
-
-    # Multiple time snapshots (faded)
     for ti, alpha_val in zip([0, 3, 6], [0.15, 0.25, 0.4]):
         eta_t = wf.surface_elevation(x_surf, ti)
         ax1.plot(x_surf, eta_t, color='#5ab4d9', alpha=alpha_val, linewidth=0.8)
 
-    # Main surface
+
     ax1.fill_between(x_surf, eta, -8, where=(eta > -8),
                       color='#1a4f7e', alpha=0.4)
     ax1.plot(x_surf, eta, color='#5ab4d9', linewidth=1.8, label='η(x,t)')
 
-    # Stokes wave comparison (dominant component)
     dominant_idx = np.argmax([w.amplitude for w in wf.waves])
     dominant = wf.waves[dominant_idx]
     eta_dom = wf.surface_elevation(x_surf * 0 + 0, t_anim)  # full field
@@ -254,32 +195,21 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     ax1.tick_params(**tick_kw)
     ax1.legend(fontsize=8, loc='upper right', facecolor='#0d2b52', labelcolor='#e0eaf5')
     ax1.spines[:].set_color('#3a5a7c')
-
-    # Annotate significant wave height
     ax1.annotate(f'Hs = {cfg.Hs:.1f} m', xy=(80, cfg.Hs/2 + 0.3),
                  fontsize=9, color='#e06c1f')
-
-    # -----------------------------------------------------------------------
-    # Panel 2: Subsurface velocity field
-    # -----------------------------------------------------------------------
     ax2 = fig.add_subplot(gs[1, :2])
     ax2.set_facecolor('#0d1f3c')
 
     im2 = ax2.pcolormesh(X_sub, Z_sub, speed_field,
                           cmap='YlOrRd', shading='auto', alpha=0.9,
                           vmin=0, vmax=speed_field.max() * 0.8)
-    # Quiver (velocity arrows, subsampled)
     skip = 12
     ax2.quiver(X_sub[::skip, ::skip], Z_sub[::skip, ::skip],
                u_field[::skip, ::skip], v_field[::skip, ::skip],
                color='white', alpha=0.6, scale=6, width=0.002)
-
-    # Surface profile
     ax2.fill_between(x_surf, eta, 5, color='#1a4f7e', alpha=0.3)
     ax2.plot(x_surf, eta, color='#5ab4d9', linewidth=1.5)
     ax2.axhline(y=0, color='#5ab4d9', linewidth=0.5, linestyle='--', alpha=0.4)
-
-    # Seafloor
     ax2.fill_between(x_sub, -cfg.Lz, -cfg.Lz + 2, color='#4a3520', alpha=0.8)
 
     cb2 = plt.colorbar(im2, ax=ax2, shrink=0.8, label='Speed |V| (m/s)')
@@ -293,14 +223,8 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     ax2.set_ylabel('depth z (m)', **label_kw)
     ax2.tick_params(**tick_kw)
     ax2.spines[:].set_color('#3a5a7c')
-
-    # Depth annotation
     ax2.text(-cfg.Lx/2 + 5, -cfg.h + 2, f'h = {cfg.h:.0f} m',
              fontsize=8, color='#8aafc8', va='top')
-
-    # -----------------------------------------------------------------------
-    # Panel 3: Island wave scattering (conformal mapping — Sec 126)
-    # -----------------------------------------------------------------------
     ax3 = fig.add_subplot(gs[1, 2])
     ax3.set_facecolor('#0d1f3c')
 
@@ -335,17 +259,11 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     ax3.annotate('', xy=(-3.5, 0), xytext=(-3.9, 0),
                  arrowprops=dict(arrowstyle='->', color='white', lw=1.5))
 
-    # -----------------------------------------------------------------------
-    # Panel 4: Particle trajectories (Stokes drift)
-    # -----------------------------------------------------------------------
     ax4 = fig.add_subplot(gs[2, :2])
     ax4.set_facecolor('#0d1f3c')
-
-    # Background: speed at t=0
     im4 = ax4.pcolormesh(X_sub, Z_sub, speed_field, cmap=OCEAN_CMAP,
                           shading='auto', alpha=0.7, vmin=0)
 
-    # Particle trails
     trail_len = min(20, len(tracker.history_x))
     n_show = min(n_track_steps, len(tracker.history_x))
     for i in range(cfg.n_particles):
@@ -357,8 +275,6 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
             ax4.plot(px[j:j+2], py[j:j+2], color='#f0a040', alpha=alpha,
                      linewidth=0.8)
         ax4.plot(px[-1], py[-1], 'o', color='#f0d060', markersize=3, zorder=5)
-
-    # Start positions
     ax4.plot(x0, y0, 's', color='#40d0f0', markersize=3, alpha=0.7,
              label='Start', zorder=6)
 
@@ -381,19 +297,12 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     ax4.text(0, -cfg.Lz + 5, f'Mean Stokes drift: {drift_dx:.2f} m',
              fontsize=8, color='#f0a040', ha='center')
 
-    # -----------------------------------------------------------------------
-    # Panel 5: JONSWAP spectrum
-    # -----------------------------------------------------------------------
     ax5 = fig.add_subplot(gs[2, 2])
     ax5.set_facecolor('#0d1f3c')
-
-    # Individual wave components as vertical bars
     for w in wf.waves:
         fi = w.omega / (2 * np.pi)
         ax5.bar(fi, 0.5 * w.amplitude**2 / 0.01, width=0.008,
                 color='#5ab4d9', alpha=0.4, linewidth=0)
-
-    # JONSWAP envelope
     f_fine = np.linspace(0.02, 0.5, 400)
     S_fine = jonswap_spectrum(f_fine, Hs=cfg.Hs, Tp=cfg.Tp, gamma=cfg.gamma)
     ax5.plot(f_fine, S_fine, color='#e06c1f', linewidth=2.5, label='JONSWAP S(f)')
@@ -410,10 +319,6 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     ax5.legend(fontsize=8, facecolor='#0d2b52', labelcolor='#e0eaf5')
     ax5.spines[:].set_color('#3a5a7c')
     ax5.set_facecolor('#0d1f3c')
-
-    # -----------------------------------------------------------------------
-    # Main title
-    # -----------------------------------------------------------------------
     fig.text(0.5, 0.975,
              'Ocean Wave Simulation',
              ha='center', va='top', fontsize=14, color='#e0eaf5', fontweight='bold')
@@ -425,12 +330,6 @@ def run_full_simulation(cfg: OceanConfig = None, save_path: str = None):
     plt.savefig(out_path, dpi=140, bbox_inches='tight', facecolor=fig.get_facecolor())
     print(f"\nSaved → {out_path}")
     return fig
-
-
-# ---------------------------------------------------------------------------
-# Animation: time-evolving ocean surface + subsurface
-# ---------------------------------------------------------------------------
-
 def run_animation(cfg: OceanConfig = None, save_path: str = None, n_frames: int = 80):
     if cfg is None:
         cfg = OceanConfig()
@@ -450,15 +349,11 @@ def run_animation(cfg: OceanConfig = None, save_path: str = None, n_frames: int 
         ax.set_facecolor('#0d1f3c')
         ax.spines[:].set_color('#3a5a7c')
         ax.tick_params(colors='#8aafc8', labelsize=8)
-
-    # Initial data
     t0 = 0.0
     eta0 = wf.surface_elevation(x_surf, t0)
     u0 = wf.velocity_u(X_sub, Z_sub, t0)
     v0 = wf.velocity_v(X_sub, Z_sub, t0)
     speed0 = np.sqrt(u0**2 + v0**2)
-
-    # Top: surface
     ax = axes[0]
     ax.set_xlim(-cfg.Lx/2, cfg.Lx/2)
     ax.set_ylim(-8, 8)
@@ -471,8 +366,6 @@ def run_animation(cfg: OceanConfig = None, save_path: str = None, n_frames: int 
                          fontsize=10, color='#e0eaf5')
     ax.set_ylabel('η (m)', color='#8aafc8', fontsize=9)
     ax.set_title('Ocean Surface η(x,t)', color='#e0eaf5', fontsize=11)
-
-    # Bottom: subsurface speed
     ax2 = axes[1]
     im = ax2.pcolormesh(X_sub, Z_sub, speed0, cmap='YlOrRd', shading='auto',
                          vmin=0, vmax=speed0.max() * 1.2)
@@ -530,11 +423,6 @@ def run_animation(cfg: OceanConfig = None, save_path: str = None, n_frames: int 
     print(f"  Saved → {out_path}")
     plt.close(fig)
     return out_path
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
     import sys
