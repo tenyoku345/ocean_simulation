@@ -1,86 +1,3 @@
-# Ocean Wave Simulation
-
-**MATH 4320 — Complex Variables and Applications · Spring 2026**
-
-A physically accurate 2D ocean wave simulation built entirely on the complex potential framework from *Complex Variables and Applications*, Brown & Churchill (9th ed.), Sections 124–126 and 131–132. Every velocity field, pressure map, and particle trajectory in the simulation is derived from a single analytic function F(z) = φ + iψ and its derivative V = F′(z).
-
----
-
-## Mathematical foundation
-
-The governing equation throughout is **Laplace's equation**:
-
-```
-∇²φ = 0
-```
-
-Because ocean waves are irrotational and incompressible to leading order (the hypothesis of Sec. 124), the velocity potential φ satisfies Laplace's equation in the interior of the fluid. The complex potential F(z) = φ + iψ is analytic, so both φ (velocity potential) and ψ (stream function) satisfy it automatically. The full velocity field is recovered everywhere by:
-
-```
-V(z) = conj(F′(z))        [Sec. 125, Eq. 3]
-```
-
-Adding a free surface y = η(x, t) introduces the dispersion relation (Phase 3 of the roadmap):
-
-```
-ω² = g·k·tanh(k·h)
-```
-
-This single equation governs wave speed, group velocity, tsunami propagation, and harbour resonance — all of which are computed in the simulation.
-
----
-
-## Files
-
-```
-ocean_sim/
-├── complex_potential.py      # Core engine — Secs 124–125
-├── wave_theory.py            # Dispersion relation, JONSWAP spectrum, Stokes waves
-├── coastal_scattering.py     # Conformal mapping of coastal geometry — Sec 126
-└── ocean_simulation.py       # Main script — run this
-```
-
-All four files must be kept in the same directory. The modules import each other in the order shown above.
-
-### `complex_potential.py`
-
-The direct computational translation of Secs. 124–126. Implements every elementary complex potential as a callable F(z):
-
-| Function | Potential F(z) | B&C reference |
-|---|---|---|
-| `uniform_flow` | A·e^{−iα}·z | Sec. 124 |
-| `source_sink` | (Q/2π)·Log(z − z₀) | Sec. 125, Ex. 1 |
-| `vortex` | −(iΓ/2π)·Log(z − z₀) | Sec. 125 |
-| `corner_flow` | A·z^n | Sec. 126, Ex. 1 |
-| `cylinder_flow` | A(z + R²/z) − (iΓ/2π)·Log z | Sec. 126, Ex. 2 |
-
-Also provides `compute_fields`, which evaluates φ, ψ, u, v, speed, and Bernoulli pressure on any grid; and `superpose`, which sums potentials using the linearity of Laplace's equation.
-
-### `wave_theory.py`
-
-Implements Phases 2–3 of the ocean wave roadmap. Key components:
-
-- **`dispersion(k, h)`** — solves ω² = g·k·tanh(k·h)
-- **`LinearWave`** — a single progressive wave with velocity potential, particle orbit equations (ellipses in finite depth, circles in deep water), and Stokes nonlinear correction
-- **`WaveField`** — superposition of N linear waves via `φ_total = Σ φ_n`
-- **`jonswap_spectrum(f, Hs, Tp, gamma)`** — JONSWAP spectral density S(f) in m²/Hz
-- **`waves_from_jonswap(...)`** — builds a realistic random sea state by sampling the spectrum; each frequency bin becomes a `LinearWave` with random phase
-
-### `coastal_scattering.py`
-
-Applies the conformal mapping strategy of Sec. 126 to coastal engineering scenarios. The workflow: find w = f(z) that simplifies the obstacle boundary → solve in the w-plane → pull back via F_z(z) = F_w(f(z)). Implements:
-
-- **Circular island** — `F(z) = A(z + R²/z)`, direct application of Sec. 126 Ex. 2
-- **Headland (wedge)** — `F(z) = A·z^n` with n = π/α for a headland of interior angle α
-- **Harbour resonance** — source-at-entrance model (Sec. 131 slit analogy); resonance periods computed from the quarter-wavelength condition
-- **Two islands** — method-of-images superposition of doublet terms
-
-### `ocean_simulation.py`
-
-Integration module. Assembles all panels, runs particle tracking, and produces both output files. Wave conditions are configured via the `OceanConfig` dataclass; see [Configuration](#configuration) below.
-
----
-
 ## Requirements
 
 - Python 3.10 or higher
@@ -162,18 +79,6 @@ Running animation (60 frames)...
 | `ocean_simulation.png` | 5-panel static figure: ocean surface η(x,t), subsurface velocity field V = F′(z), island wave scattering (Sec. 126), Lagrangian particle tracking, and JONSWAP spectrum |
 | `ocean_animation.gif` | Animated ocean surface and subsurface velocity field evolving in real time at 25 fps |
 
-### What each panel shows
-
-**Panel 1 — Ocean surface η(x,t).** The total surface elevation as a superposition of 60 JONSWAP spectral components. Ghost traces at earlier times reveal wave group structure; groups travel at the group velocity c_g = dω/dk, not the phase speed.
-
-**Panel 2 — Subsurface velocity field.** Colour map of |V| = |F′(z)| with velocity vectors. The exponential decay of velocity with depth is visible — at y = −h the vertical component is exactly zero (the streamline condition of Sec. 125).
-
-**Panel 3 — Island wave scattering.** Pressure field (Bernoulli, Sec. 124) and streamlines ψ = const around a circular island, computed from F(z) = A(z + R²/z). Stagnation points at front and back of island are points of maximum wave runup.
-
-**Panel 4 — Lagrangian particle tracking.** 30 particles advected by V = F′(z) via 4th-order Runge–Kutta. Net rightward drift of surface particles reveals the Stokes drift; depth dependence (~e^{2ky}) is clearly visible.
-
-**Panel 5 — JONSWAP spectrum.** Spectral density S(f) with individual wave components as bars. The f^{−5} Phillips tail and the peak at f_p = 1/T_p are annotated.
-
 ---
 
 ## Running individual modules
@@ -181,13 +86,8 @@ Running animation (60 frames)...
 Each module can be run independently to inspect its specific output:
 
 ```bash
-# Cylinder flow, Joukowski map, stagnation points (Sec. 126)
 python3 complex_potential.py
-
-# Dispersion curves, JONSWAP spectrum, particle orbits at depth
 python3 wave_theory.py
-
-# Island scattering, headland flow, two-island interference
 python3 coastal_scattering.py
 ```
 
@@ -245,34 +145,6 @@ class OceanConfig:
     # Particles
     n_particles: int = 30
 ```
-
-**Quick tip — faster test run:** to check everything is working before committing to the full animation, reduce `n_frames` to 15 at the bottom of the file. This cuts animation time to roughly 20 seconds.
-
+Feel free to change configurations listed here to see different effects of the simulation.
 ---
 
-## Connection to Brown & Churchill
-
-| B&C reference | Equation | Python |
-|---|---|---|
-| Sec. 124 | ∇²φ = 0 | All modules — governs the entire fluid |
-| Sec. 124, Bernoulli | P + ½ρ\|V\|² = C | `compute_fields` → pressure panel |
-| Sec. 125, Eq. 3 | V = conj(F′(z)) | `compute_fields` → velocity field |
-| Sec. 126, Ex. 1 | F = A·z^n corner flow | `corner_flow` → headland scattering |
-| Sec. 126, Ex. 2 | F = A(z + R²/z) | `cylinder_flow` → island scattering |
-| Sec. 131 (analogy) | Slit / logarithmic potential | `harbour_flow` → resonance periods |
-| Dispersion relation | ω² = g·k·tanh(k·h) | `dispersion` in `wave_theory.py` |
-| JONSWAP spectrum | S(f) = α·g²·f^{−5}·exp(...)·γ^r | `jonswap_spectrum` |
-| Stokes wave | η = A cos θ + (kA²/2) cos 2θ + ... | `stokes_elevation` |
-
----
-
-## Accompanying documents
-
-| File | Description |
-|---|---|
-| `ocean_simulation_report.pdf` | 13-page LaTeX technical report: full mathematical derivations, module documentation, equation-to-code mapping table, and extension directions |
-| `ocean_simulation_report.tex` | LaTeX source for the report |
-
----
-
-*Complex Variables and Applications, Brown & Churchill, 9th ed. — Secs. 124–126, 131–132*
