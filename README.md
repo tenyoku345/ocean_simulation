@@ -107,9 +107,9 @@ if __name__ == '__main__':
 
 | Parameter | Default | Try | Effect |
 |---|---|---|---|
-| `cfg.Hs` | 3.5 m | 6.0 | Larger storm — taller waves |
+| `cfg.Hs` | 3.5 m | 6.0 | Larger storm, taller waves |
 | `cfg.Tp` | 12.0 s | 6.0 | Short-period wind chop instead of ocean swell |
-| `cfg.h` | 50.0 m | 5.0 | Shallow water — watch the dispersion relation change |
+| `cfg.h` | 50.0 m | 5.0 | Shallow water |
 | `cfg.gamma` | 3.3 | 1.0 | Pierson–Moskowitz open-ocean spectrum |
 | `cfg.n_waves` | 60 | 200 | More realistic sea state; slower runtime |
 
