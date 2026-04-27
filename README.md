@@ -20,17 +20,17 @@ conda install numpy matplotlib scipy
 
 ## Running the simulation
 
-### 1. Verify Python version
+### 1. At a suitable location, open Command Window and verify Python version
 
 ```bash
 python3 --version
 # Expected: Python 3.10.x or higher
 ```
 
-### 2. Navigate to the project folder
+### 2. Clone the repository
 
 ```bash
-cd path/to/ocean_sim
+git clone https://github.com/tenyoku345/ocean_simulation
 ```
 
 ### 3. Run the main script
